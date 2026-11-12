@@ -1,0 +1,273 @@
+<html>
+<head>
+    <title>Global Atom Manager</title>
+    <hta:application id="app" applicationname="Global Atom Manager" version="1.0" windowstate="maximize" contextmenu="no" />
+
+    <meta name="author" content="Javad Bayat">
+    <meta http-equiv="content-type" content="text/html; charset = UTF-8">
+    <meta http-equiv="MSThemeCompatible" content="Yes">
+
+    <object id="objImageList" classid="clsid:556C2772-F1AD-4DE1-8456-BD6E8F66113B"></object>
+    <object id="objDisImageList" classid="clsid:556C2772-F1AD-4DE1-8456-BD6E8F66113B"></object>
+
+    <script src="station.js" type="text/jscript"></script>
+
+    <script language="jscript">
+        wshShell.CurrentDirectory = fso.GetParentFolderName(location.pathname);
+        var AtomManager = LoadStation("GlobalAtomManager.dll");
+        var findDialog = { closed: true };
+
+        onload = function () {
+            var icons = new PicturePack("toolbar-icons.tif");
+            objImageList.ListImages.Add(1, "Plus", icons.page(1));
+            objImageList.ListImages.Add(2, "Copy", icons.page(2));
+            objImageList.ListImages.Add(3, "Minus", icons.page(3));
+            objImageList.ListImages.Add(4, "Magnifier", icons.page(4));
+            objImageList.ListImages.Add(5, "Cycle", icons.page(5));
+
+            icons = new PicturePack("toolbar-icons-disabled.tif");
+            objDisImageList.ListImages.Add(1, "Plus", icons.page(1));
+            objDisImageList.ListImages.Add(2, "Copy", icons.page(2));
+            objDisImageList.ListImages.Add(3, "Minus", icons.page(3));
+            objDisImageList.ListImages.Add(4, "Magnifier", icons.page(4));
+            objDisImageList.ListImages.Add(5, "Cycle", icons.page(5));
+
+            objToolbar.ImageList = objToolbar.HotImageList = objImageList;
+            objToolbar.DisabledImageList = objDisImageList;
+            objToolbar.Wrappable = false;
+
+            var button;
+            button = objToolbar.Buttons.Add(1, "Refresh", "Refresh", 0, "Cycle");
+            // button.ToolTipText = "Refresh the Global Atom Table";
+            button = objToolbar.Buttons.Add(2, "AddAtom", "Add", 0, "Plus");
+            // button.ToolTipText = "Add a Global Atom";
+            button = objToolbar.Buttons.Add(3, "DeleteAtom", "Delete", 0, "Minus");
+            // button.ToolTipText = "Delete the selected Atom";
+            button.Enabled = false;
+            button = objToolbar.Buttons.Add(4, "Sep1", "", 3);
+            button = objToolbar.Buttons.Add(5, "Copy", "Copy", 0, "Copy");
+            // button.ToolTipText = "Copy the selected Atom to Clipboard";
+            button.Enabled = false;
+            button = objToolbar.Buttons.Add(6, "Find", "Find", 0, "Magnifier");
+            // button.ToolTipText = "Find an Atom in the table";
+
+            tblGlobalAtoms.exp_selectedItem = null;
+            divAtomsContainer.attachEvent("onclick", deselectAtom);
+
+            listAtoms();
+
+            setTimeout(onresize = adjustLayout, 500);
+
+            function PicturePack(tiffName) {
+                var tiff = new ActiveXObject("WIA.ImageFile");
+                tiff.LoadFile(tiffName);
+
+                this.count = tiff.FrameCount;
+                this.page = function (index) {
+                    with (tiff) {
+                        ActiveFrame = index;
+                        return ARGBData.Picture(Width, Height);
+                    }
+                };
+            }
+        };
+
+        document.onkeyup = function () {
+            switch (event.keyCode) {
+                case 82:
+                    if (event.ctrlKey) {
+                        clearAtomTable();
+                        listAtoms();
+                    }
+
+                    break;
+                case 78:
+                    if (event.ctrlKey)
+                        addAtom();
+
+                    break;
+                case 46:
+                    deleteAtom();
+                    break;
+                case 70:
+                    if (event.ctrlKey && event.shiftKey)
+                        findAtom();
+
+                    break;
+            }
+        };
+
+        function adjustLayout() {
+            var h = document.body.clientHeight;
+            divAtomsContainer.style.height = h - objToolbar.offsetHeight - 7;
+        }
+
+        function listAtoms() {
+            AtomManager(function (atomName, atom) {
+                var row = tblGlobalAtoms.insertRow();
+                row.exp_atom = atom;
+                row.onclick = selectAtom;
+
+                row.insertCell().innerText = "0x" + atom.toString(16).toUpperCase();
+                row.insertCell().innerText = atomName;
+
+                return true;
+            });
+        }
+
+        function clearAtomTable() {
+            deselectAtom();
+
+            while (tblGlobalAtoms.rows.length > 1)
+                tblGlobalAtoms.deleteRow();
+        }
+
+        function enableSelectionButtons(fEnable) {
+            var b = objToolbar.Buttons;
+            b("Copy").Enabled = b("DeleteAtom").Enabled = fEnable;
+        }
+
+        function selectAtom() {
+            if (tblGlobalAtoms.exp_selectedItem)
+                tblGlobalAtoms.exp_selectedItem.bgColor = "";
+
+            tblGlobalAtoms.exp_selectedItem = this;
+            tblGlobalAtoms.exp_selectedItem.bgColor = "cyan";
+
+            enableSelectionButtons(true);
+
+            if (event)
+                event.cancelBubble = true;
+        }
+
+        function deselectAtom() {
+            if (!tblGlobalAtoms.exp_selectedItem)
+                return;
+
+            tblGlobalAtoms.exp_selectedItem.bgColor = "";
+            tblGlobalAtoms.exp_selectedItem = null;
+
+            enableSelectionButtons(false);
+        }
+
+        function copyAtom() {
+            var selectedAtom = tblGlobalAtoms.exp_selectedItem;
+            if (!selectedAtom)
+                return false;
+
+            var atomName = selectedAtom.cells[1].innerText;
+            return clipboardData.setData("text", atomName);
+        }
+
+        function addAtom() {
+            var atomName = Ask("Enter Atom Name to add:", "Add Atom");
+            if (!atomName)
+                return;
+
+            var atom = AtomManager.CreateAtom(atomName);
+
+            var atomEntry = null;
+            for (var i = 1; i < tblGlobalAtoms.rows.length; i++) {
+                if (tblGlobalAtoms.rows[i].exp_atom == atom) {
+                    atomEntry = tblGlobalAtoms.rows[i];
+                    break;
+                }
+            }
+
+            if (!atomEntry) {
+                atomEntry = tblGlobalAtoms.insertRow();
+                atomEntry.exp_atom = atom;
+                atomEntry.onclick = selectAtom;
+
+                atomEntry.insertCell().innerText = "0x" + atom.toString(16).toUpperCase();
+                atomEntry.insertCell().innerText = atomName;
+            }
+
+            atomEntry.click();
+            atomEntry.scrollIntoView();
+        }
+
+        function deleteAtom() {
+            var atomEntry = tblGlobalAtoms.exp_selectedItem;
+            if (!atomEntry)
+                return false;
+
+            AtomManager.DestroyAtom(atomEntry.exp_atom);
+
+            deselectAtom();
+            atomEntry.removeNode(true);
+        }
+
+        function findAtom() {
+            if (findDialog.closed)
+                findDialog = showModelessDialog("Find.htm", tblGlobalAtoms, "dialogWidth: 450px; dialogHeight: 250px; resizable: yes");
+            else
+                findDialog.focus();
+        }
+    </script>
+
+    <script language="vbscript">
+        Function Ask(m, t)
+            Ask = InputBox(m, t)
+        End Function
+    </script>
+
+    <script language="jscript" for="objToolbar" event="ButtonClick(Button)">
+        switch (Button.Key) {
+            case "Refresh":
+                clearAtomTable();
+                listAtoms();
+                break;
+            case "Copy":
+                copyAtom();
+                break;
+            case "AddAtom":
+                addAtom();
+                break;
+            case "DeleteAtom":
+                deleteAtom();
+                break;
+            case "Find":
+                findAtom();
+                break;
+        }
+    </script>
+
+    <style type="text/css">
+        body {
+            font-family: verdana;
+            margin: 0;
+            padding: 0;
+        }
+
+        #divAtomsContainer {
+            margin-top: 3px;
+            padding: 0;
+            width: 100%;
+            border: 1px solid black;
+            background-color: #ffffcc;
+            overflow: auto;
+        }
+
+        #tblGlobalAtoms {
+            border-collapse: collapse;
+        }
+
+            #tblGlobalAtoms th, td {
+                text-align: center;
+                vertical-align: middle;
+            }
+    </style>
+</head>
+<body scroll="no">
+    <object id="objToolbar" classid="clsid:8B2ADD10-33B7-4506-9569-0A1E1DBBEBAE" width="100%"></object>
+    <div id="divAtomsContainer">
+        <table id="tblGlobalAtoms" width="100%" border="1" bordercolor="black" cellpadding="5">
+            <tr>
+                <th>Atom</th>
+                <th>Atom Name</th>
+            </tr>
+        </table>
+    </div>
+</body>
+</html>

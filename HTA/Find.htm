@@ -1,0 +1,277 @@
+﻿<html>
+<head>
+    <title>Find Atom</title>
+
+    <meta name="author" content="Javad Bayat">
+    <meta http-equiv="content-type" content="text/html; charset = UTF-8">
+    <meta http-equiv="MSThemeCompatible" content="Yes">
+
+    <script language="jscript">
+        var atomTable = dialogArguments;
+
+        onload = function () {
+            var w = btnFindNext.offsetWidth;
+            btnCancel.style.width = w;
+            btnCancel.parentNode.width = w + 3;
+
+            txtWhat.attachEvent("onkeyup", checkBlank);
+            txtWhat.attachEvent("onpaste", checkBlank);
+            txtWhat.attachEvent("ondrop", checkBlank);
+
+            txtWhat.attachEvent("onkeyup", function () {
+                if (event.keyCode == 13)
+                    btnFindNext.click();
+            });
+
+            radX.attachEvent("onclick", function () {
+                fsDirection.disabled = fsOptions.disabled = true;
+            });
+
+            radY.attachEvent("onclick", function () {
+                fsDirection.disabled = fsOptions.disabled = false;
+            });
+
+            chkWildcard.attachEvent("onclick", function () {
+                fsDirection.disabled = !chkWildcard.checked;
+            });
+
+            btnFindNext.onclick = findNext;
+
+            (onresize = adjustLayout)();
+        };
+
+        document.onkeyup = function () {
+            switch (event.keyCode) {
+                case 27:
+                    window.close();
+                    break;
+                case 114:
+                    btnFindNext.click();
+                    break;
+            }
+        };
+
+        function checkBlank() {
+            btnFindNext.disabled = !txtWhat.value;
+        }
+
+        function findNext() {
+            var atomEntry = null;
+
+            if (radX.checked) {
+                var atom = parseInt(txtWhat.value);
+                if (isNaN(atom)) {
+                    alert("Invalid Atom!");
+                    return;
+                }
+
+                for (var i = 1; i < atomTable.rows.length; i++) {
+                    if (atomTable.rows[i].exp_atom == atom) {
+                        atomEntry = atomTable.rows[i];
+                        break;
+                    }
+                }
+            }
+            else if (radY.checked) {
+                var atomName = txtWhat.value;
+                if (!chkMatchCase.checked)
+                    atomName = atomName.toLowerCase();
+
+                if (chkWildcard.checked) {
+                    var containsWC = (atomName.indexOf("*") != -1);
+                    var containsQM = (atomName.indexOf("?") != -1);
+                    if (containsWC && containsQM) {
+                        alert("Invalid wildcard pattern!");
+                        return;
+                    }
+                    else if (containsWC) {
+                        atomName = atomName.split("*");
+                        findByPattern(wildcardMatches);
+                    }
+                    else if (containsQM)
+                        findByPattern(qmMatches);
+                    else
+                        findByName();
+                }
+                else
+                    findByName();
+            }
+
+            if (atomEntry)
+                indicateResult(atomEntry);
+            else
+                alert("The specified Atom was not found.");
+
+            function findByName() {
+                for (var i = 1; i < atomTable.rows.length; i++) {
+                    var an = atomTable.rows[i].cells[1].innerText;
+                    if (!chkMatchCase.checked)
+                        an = an.toLowerCase();
+
+                    if (atomName == an) {
+                        atomEntry = atomTable.rows[i];
+                        break;
+                    }
+                }
+            }
+
+            function findByPattern(patternFunc) {
+                if (atomTable.exp_selectedItem) {
+                    var si = atomTable.exp_selectedItem.rowIndex;
+                    if (radDown.checked) {
+                        for (var i = si + 1; i < atomTable.rows.length; i++) {
+                            if (foo())
+                                return;
+                        }
+
+                        for (var i = 1; i <= si; i++) {
+                            if (foo())
+                                return;
+                        }
+                    }
+                    else if (radUp.checked) {
+                        for (var i = si - 1; i; i--) {
+                            if (foo())
+                                return;
+                        }
+
+                        for (var i = atomTable.rows.length - 1; i >= si; i--) {
+                            if (foo())
+                                return;
+                        }
+                    }
+                }
+                else {
+                    if (radDown.checked) {
+                        for (var i = 1; i < atomTable.rows.length; i++) {
+                            if (foo())
+                                return;
+                        }
+                    }
+                    else if (radUp.checked) {
+                        for (var i = atomTable.rows.length - 1; i; i--) {
+                            if (foo())
+                                return;
+                        }
+                    }
+                }
+
+                function foo() {
+                    var an = atomTable.rows[i].cells[1].innerText;
+                    if (!chkMatchCase.checked)
+                        an = an.toLowerCase();
+
+                    if (patternFunc(an, atomName)) {
+                        atomEntry = atomTable.rows[i];
+                        return true;
+                    }
+
+                    return false;
+                }
+            }
+        }
+
+        function indicateResult(result) {
+            result.click();
+            result.scrollIntoView();
+        }
+
+        function wildcardMatches(str, rule) {
+            var currentLoc = 0;
+            for (var i = 0; i < rule.length; i++) {
+                var loc = str.indexOf(rule[i], currentLoc);
+                if (loc < 0)
+                    return false;
+                if ((!i) && (rule[0] != ""))
+                    if (loc)
+                        return false;
+                if ((i == rule.length - 1) && (rule[i] != ""))
+                    if (loc + rule[i].length != str.length)
+                        return false;
+                currentLoc = loc + rule[i].length;
+            }
+            return true;
+        }
+
+        function qmMatches(str, rule, questionMark) {
+            if (!questionMark)
+                questionMark = "?";
+
+            if (str.length != rule.length)
+                return false;
+
+            for (var i = 0; i < rule.length; i++) {
+                if (rule.charAt(i) != questionMark) {
+                    if (rule.charAt(i) != str.charAt(i))
+                        return false;
+                }
+            }
+
+            return true;
+        }
+
+        function adjustLayout() {
+            var cell = tblLayout.cells[0];
+            var label = cell.children[0];
+            txtWhat.style.width = cell.clientWidth - label.offsetWidth - 20;
+        }
+    </script>
+
+    <style type="text/css">
+        body {
+            font-family: verdana;
+            padding: 10px;
+        }
+
+        button {
+            margin-bottom: 7px;
+        }
+
+        fieldset {
+            margin: 7px;
+            padding: 5px;
+        }
+    </style>
+</head>
+<body scroll="no" bgcolor="ThreeDFace">
+    <table width="100%" id="tblLayout">
+        <tr>
+            <td>
+                <label for="txtWhat">Find what:</label>
+                <input type="text" id="txtWhat" maxlength="255"><br>
+
+                <fieldset id="fsLookIn">
+                    <legend>Look in</legend>
+
+                    <input type="radio" id="radX" name="LookIn" value="Atom">
+                    <label for="radX">Atom</label>
+                    <input type="radio" id="radY" name="LookIn" value="AtomName" checked>
+                    <label for="radY">Atom Name</label>
+                </fieldset>
+
+                <fieldset id="fsDirection">
+                    <legend>Direction</legend>
+
+                    <input type="radio" id="radUp" name="Direction" value="Up">
+                    <label for="radUp">Up</label>
+                    <input type="radio" id="radDown" name="Direction" value="Down" checked>
+                    <label for="radDown">Down</label>
+                </fieldset>
+
+                <fieldset id="fsOptions">
+                    <legend>Options</legend>
+
+                    <input type="checkbox" id="chkMatchCase" name="Opt" value="MatchCase">
+                    <label for="chkMatchCase">Match Case</label><br>
+                    <input type="checkbox" id="chkWildcard" name="Opt" value="Wildcard" checked>
+                    <label for="chkWildcard">Interpret Wildcards</label>
+                </fieldset>
+            </td>
+            <td valign="top">
+                <button id="btnFindNext" disabled>Find Next</button><br>
+                <button id="btnCancel" onclick="window.close()">Cancel</button>
+            </td>
+        </tr>
+    </table>
+</body>
+</html>
